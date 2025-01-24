@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple DouDiZhu</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #game {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #players {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .player {
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #input-area {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <h1>大北农</h1>
+        <div id="status"></div>
+        <div id="players">
+            <div class="player" id="player1">
+                <h2>Player 1</h2>
+                <div id="cards1"></div>
+            </div>
+            <div class="player" id="player2">
+                <h2>Player 2</h2>
+                <div id="cards2"></div>
+            </div>
+            <div class="player" id="player3">
+                <h2>Player 3</h2>
+                <div id="cards3"></div>
+            </div>
+        </div>
+        <div id="input-area">
+            <input type="text" id="input" placeholder="Enter cards to play (e.g., 3 3 4)">
+            <button id="play">Play</button>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8080');
+
+        let playerId = null; // Player ID assigned by the server
+        let cards = []; // Player's cards
+        let landlordCard = null; // Landlord card
+        let currentPlayer = null; // Whose turn it is
+        const statusDiv = document.getElementById('status');
+
+        function renderCards() {
+            for (let i = 1; i <= 3; i++) {
+                const playerCardsDiv = document.getElementById(`cards${i}`);
+                playerCardsDiv.innerText = currentPlayer === `player${i}` ? 'Your turn!' : '';
+                if (playerId === `player${i}`) {
+                    playerCardsDiv.innerText = `Your cards: ${cards.join(', ')}`;
+                }
+            }
+        }
+
+        ws.onopen = () => {
+            statusDiv.innerText = 'Connected to server';
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'init') {
+                playerId = data.playerId;
+                cards = data.cards;
+                landlordCard = data.landlordCard;
+                currentPlayer = data.currentPlayer;
+                statusDiv.innerText = `You are ${playerId}. Landlord card is ${landlordCard}`;
+                renderCards();
+            }
+
+            if (data.type === 'update') {
+                currentPlayer = data.currentPlayer;
+                renderCards();
+                if (data.winner) {
+                    statusDiv.innerText = `${data.winner} wins the game!`;
+                }
+            }
+
+            if (data.type === 'error') {
+                alert(data.message);
+            }
+        };
+
+        document.getElementById('play').onclick = () => {
+            const input = document.getElementById('input').value.trim();
+            const playedCards = input.split(' ');
+
+            ws.send(JSON.stringify({
+                type: 'play',
+                playerId,
+                playedCards,
+            }));
+
+            document.getElementById('input').value = '';
+        };
+    </script>
+</body>
+</html>
